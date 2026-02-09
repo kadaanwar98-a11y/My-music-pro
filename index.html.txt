@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ff4757">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Music Pro Max - Premium Edition</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+    <style>
+        /* --- ستايل شاشة الترحيب --- */
+        #splash-screen {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100000;
+            transition: opacity 0.8s ease, visibility 0.8s;
+        }
+
+        .splash-logo {
+            width: 150px;
+            height: 150px;
+            background-color: #ff4757;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            animation: splashPulse 2s infinite ease-in-out;
+        }
+
+        .splash-logo::before, .splash-logo::after, .splash-bar-center {
+            content: ''; background-color: #000; border-radius: 10px; position: absolute;
+        }
+        .splash-bar-center { width: 12px; height: 60px; }
+        .splash-logo::before { width: 12px; height: 35px; left: 35px; }
+        .splash-logo::after { width: 12px; height: 35px; right: 35px; }
+
+        @keyframes splashPulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.4); }
+            50% { transform: scale(1.05); box-shadow: 0 0 30px 10px rgba(255, 71, 87, 0.2); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); }
+        }
+
+        .fade-out { opacity: 0; visibility: hidden; }
+
+        :root { --main: #ff4757; --bg: #0b0b0b; --card: #1a1a1a; --text: #ffffff; }
+        body.theme-neon { --main: #00f2ff; --bg: #0a0f1d; --card: #121a2d; }
+        body.theme-gold { --main: #ffcc00; --bg: #1a1a10; --card: #2a2a15; }
+        body.theme-purple { --main: #bf55ec; --bg: #0f0514; --card: #1d0b25; }
+        body.theme-green { --main: #2ecc71; --bg: #05140b; --card: #0b2514; }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; transition: 0.3s; }
+
+        .content::-webkit-scrollbar { width: 4px; }
+        .content::-webkit-scrollbar-thumb { background: var(--main); border-radius: 10px; }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .song-card { 
+            background: var(--card); padding: 10px; border-radius: 18px; position: relative; 
+            border: 1px solid #222; transition: 0.3s;
+            animation: fadeInUp 0.5s ease backwards;
+        }
+        .song-card:active { transform: scale(0.95); }
+        .song-card.playing { border-color: var(--main); box-shadow: 0 0 12px var(--main); transform: scale(1.02); }
+
+        .admin-name {
+            font-weight: bold;
+            background: linear-gradient(90deg, #ff4757, #00f2ff, #ffcc00, #ff4757);
+            background-size: 300%; -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            animation: moveGradient 4s linear infinite;
+        }
+        @keyframes moveGradient { 0% { background-position: 0% 50%; } 100% { background-position: 100% 50%; } }
+
+        #auth-screen { position: fixed; inset: 0; background: #000; z-index: 90000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .auth-box { background: var(--card); padding: 30px 20px; border-radius: 25px; width: 100%; max-width: 320px; border: 1px solid var(--main); text-align: center; }
+        .auth-box input { width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 12px; background: #111; border: 1px solid #333; color: #fff; text-align: center; outline: none; font-size: 14px; }
+        .auth-box button { width: 100%; padding: 14px; border-radius: 12px; background: var(--main); color: #000; border: none; font-weight: bold; cursor: pointer; }
+
+        #main-app { display: none; flex-direction: column; height: 100vh; }
+        header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); backdrop-filter: blur(10px); z-index: 100; }
+        .user-pfp { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--main); object-fit: cover; cursor: pointer; }
+
+        .content { flex: 1; overflow-y: auto; padding: 10px 15px 180px; display: none; }
+        .active-page { display: block; }
+
+        .search-box { background: var(--card); border: 1px solid #333; border-radius: 15px; display: flex; align-items: center; padding: 10px 15px; margin: 0 15px 15px; }
+        .search-box input { background: transparent; border: none; color: #fff; width: 100%; outline: none; font-size: 14px; margin-right: 10px; }
+
+        #add-p { display:none; background:var(--card); padding:20px; border-radius:20px; margin-bottom:15px; border:1px solid var(--main); box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        #add-p input, #add-p textarea { width:100%; padding:12px; margin-bottom:10px; border-radius:12px; background:#000; border:1px solid #333; color:#fff; outline:none; font-size:13px; }
+        #add-p button { width:100%; padding:14px; background:var(--main); border:none; border-radius:12px; font-weight:bold; color:#000; cursor:pointer; }
+
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .thumb { width: 100%; aspect-ratio: 1; border-radius: 14px; background-size: cover; background-position: center; margin-bottom: 8px; }
+        
+        .heart { position: absolute; top: 12px; right: 12px; color: rgba(255,255,255,0.3); font-size: 18px; z-index: 10; }
+        .heart.active { color: var(--main) !important; text-shadow: 0 0 8px var(--main); }
+        .del-btn { position: absolute; top: 12px; left: 12px; color: #ff4757; font-size: 16px; z-index: 10; display: none; }
+        .artist-lbl { display: block; font-size: 10px; color: #777; text-align: center; margin-top: 2px; }
+
+        .full-layer { 
+            position: fixed; inset: 0; background: var(--bg); z-index: 10000; 
+            transform: translateY(100%); transition: 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55); 
+            padding: 30px 20px; text-align: center; display: flex; flex-direction: column; opacity: 0; overflow: hidden; 
+        }
+        .full-layer.open { transform: translateY(0); opacity: 1; }
+
+        #p-bg-blur { position:absolute; inset:0; z-index:-1; background-size:cover; background-position:center; filter:blur(60px) brightness(0.3); transition: background-image 0.8s ease-in-out; transform: scale(1.2); }
+
+        .p-img { width: 75%; aspect-ratio: 1; border-radius: 25px; margin: 10px auto; object-fit: cover; transition: 0.5s; box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 1; pointer-events: none; }
+        .p-img.pulse { animation: imgPulse 2s infinite ease-in-out; border: 2px solid var(--main); }
+        @keyframes imgPulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); box-shadow: 0 0 20px var(--main); } 100% { transform: scale(1); } }
+
+        #seekbar { width: 100%; accent-color: var(--main); margin: 20px 0 5px; height: 4px; z-index: 1; }
+        .time-info { display: flex; justify-content: space-between; font-size: 12px; color: #777; margin-bottom: 20px; z-index: 1; }
+        
+        .main-controls { display: flex; justify-content: center; align-items: center; gap: 40px; margin-top: 10px; z-index: 1; }
+        .play-pause-btn { font-size: 70px !important; color: var(--main); cursor: pointer; transition: 0.2s; }
+        .play-pause-btn:active { transform: scale(0.9); }
+        
+        .extra-controls { display: flex; justify-content: center; gap: 35px; margin-top: 30px; color: #fff; z-index: 1; }
+        .extra-controls i { font-size: 20px; cursor: pointer; transition: 0.3s; opacity: 0.6; }
+        .extra-controls i.active { color: var(--main); opacity: 1; }
+
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 20000; display: none; align-items: center; justify-content: center; }
+        .modal-content { background: var(--card); padding: 25px; border-radius: 20px; width: 85%; max-width: 300px; border: 1px solid var(--main); text-align: center; }
+
+        #mini-player { position: fixed; bottom: 85px; left: 15px; right: 15px; height: 60px; background: var(--main); border-radius: 18px; display: none; align-items: center; padding: 0 12px; color: #000; z-index: 5000; animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: rgba(0,0,0,0.9); display: flex; border-top: 1px solid #222; z-index: 6000; }
+        .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #555; font-size: 10px; cursor: pointer; transition: 0.2s; }
+        .tab.active { color: var(--main); transform: translateY(-3px); }
+        .tab i { font-size: 18px; margin-bottom: 4px; }
+
+        #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--main); color: #000; padding: 10px 20px; border-radius: 50px; z-index: 99999; display: none; font-size: 13px; font-weight: bold; }
+        #lyric-content { transition: 0.5s ease; color: rgba(255,255,255,0.2); }
+        #lyric-content.active { color: var(--main); text-shadow: 0 0 15px var(--main); }
+        .prem-tag { background: linear-gradient(45deg, #ffd700, #ff8c00); color: #000; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-right: 5px; display: none; }
+        .lock { font-size: 10px; color: #666; position: absolute; top: -5px; right: -5px; }
+
+        .user-item { display: flex; align-items: center; padding: 10px; background: #000; border-radius: 12px; margin-bottom: 8px; justify-content: space-between; border: 1px solid #222; }
+        .ban-btn { padding: 5px 10px; background: #ff4757; color: #fff; border: none; border-radius: 8px; font-size: 11px; cursor: pointer; }
+        .unban-btn { padding: 5px 10px; background: #2ecc71; color: #fff; border: none; border-radius: 8px; font-size: 11px; cursor: pointer; }
+        .prem-btn { padding: 5px 10px; background: #ffd700; color: #000; border: none; border-radius: 8px; font-size: 11px; cursor: pointer; font-weight: bold; }
+
+        .leader-item { display: flex; align-items: center; background: var(--card); padding: 12px; border-radius: 15px; margin-bottom: 10px; border: 1px solid #222; animation: fadeInUp 0.4s ease backwards; }
+        .rank-badge { width: 30px; height: 30px; border-radius: 50%; background: var(--main); color: #000; display: flex; align-items: center; justify-content: center; font-weight: bold; margin-left: 12px; font-size: 14px; }
+        .leader-img { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--main); object-fit: cover; }
+        .leader-info { flex: 1; margin-right: 12px; text-align: right; }
+        .leader-score { font-size: 11px; color: var(--main); font-weight: bold; }
+
+        .next-up-box { margin-top: 20px; background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 18px; display: flex; align-items: center; gap: 12px; border: 1px dashed rgba(255, 255, 255, 0.15); z-index: 1; cursor: pointer; }
+        .next-up-info { text-align: right; flex: 1; overflow: hidden; }
+        .next-up-label { font-size: 10px; color: var(--main); display: block; margin-bottom: 2px; font-weight: bold; }
+        
+        .swipe-indicator { width: 40px; height: 5px; background: rgba(255,255,255,0.3); border-radius: 10px; margin: 0 auto 15px; }
+    </style>
+</head>
+<body>
+
+<div id="splash-screen">
+    <div class="splash-logo">
+        <div class="splash-bar-center"></div>
+    </div>
+</div>
+
+<div id="toast"></div>
+
+<div id="ban-confirm-modal" class="modal">
+    <div class="modal-content">
+        <i class="fas fa-user-slash fa-3x" id="ban-icon" style="color:var(--main); margin-bottom:15px;"></i>
+        <h4 id="ban-modal-title" style="margin-bottom:15px;">تبنيد المستخدم؟</h4>
+        <button id="confirm-ban-btn" style="width:100%; padding:12px; margin:5px 0; border-radius:10px; border:none; background:var(--main); color:#000; font-weight:bold;">تأكيد</button>
+        <button onclick="closeBanModal()" style="width:100%; padding:12px; margin:5px 0; border-radius:10px; border:none; background:#222; color:#fff;">إلغاء</button>
+    </div>
+</div>
+
+<div id="premium-modal" class="modal">
+    <div class="modal-content">
+        <i class="fas fa-crown fa-3x" style="color:#ffd700; margin-bottom:15px;"></i>
+        <h3 style="margin-bottom:10px;">Music Pro Premium</h3>
+        <p style="font-size:13px; color:#ccc; margin-bottom:20px;">افتح جميع الثيمات، كلمات الأغاني، وتخطي غير محدود للأغاني!</p>
+        <input type="text" id="promo-input" placeholder="أدخل كود التفعيل" style="width:100%; padding:12px; border-radius:10px; border:none; background:#000; color:#fff; text-align:center; margin-bottom:15px; outline:none; border: 1px solid #333;">
+        <button onclick="requestPremium()" style="width:100%; padding:14px; background:var(--main); color:#000; border:none; border-radius:10px; font-weight:bold; cursor:pointer;">إرسال طلب تفعيل</button>
+        <p onclick="closePremium()" style="margin-top:15px; font-size:12px; color:#555; cursor:pointer;">إغلاق</p>
+    </div>
+</div>
+
+<div id="delete-modal" class="modal">
+    <div class="modal-content">
+        <h4 style="margin-bottom:15px; text-align:center;">هل أنت متأكد من حذف هذه الأغنية؟</h4>
+        <button id="confirm-delete-btn" style="width:100%; padding:12px; margin:5px 0; border-radius:10px; border:none; background:var(--main); color:#000; font-weight:bold;">نعم، احذفها</button>
+        <button onclick="closeDeleteModal()" style="width:100%; padding:12px; margin:5px 0; border-radius:10px; border:none; background:#222; color:#fff;">إلغاء</button>
+    </div>
+</div>
+
+<div id="auth-screen">
+    <div class="auth-box">
+        <h2 style="color:var(--main); margin-bottom:15px;">Music Pro</h2>
+        <input type="email" id="email" placeholder="البريد الإلكتروني">
+        <input type="password" id="pass" placeholder="كلمة المرور">
+        <button onclick="handleAuth()">دخول</button>
+    </div>
+</div>
+
+<div id="timer-modal" class="modal">
+    <div class="modal-content">
+        <h4 style="margin-bottom:15px; text-align:center;">إيقاف الموسيقى بعد:</h4>
+        <button onclick="setSleepTimer(15)" style="width:100%; padding:12px; margin:5px 0; border-radius:10px; border:none; background:#222; color:#fff;">15 دقيقة</button>
+        <button onclick="setSleepTimer(30)" style="width:100%; padding:12px; margin:5px 0; border-radius:10px; border:none; background:#222; color:#fff;">30 دقيقة</button>
+        <button onclick="setSleepTimer(60)" style="width:100%; padding:12px; margin:5px 0; border-radius:10px; border:none; background:#222; color:#fff;">ساعة واحدة</button>
+        <button onclick="setSleepTimer(0)" style="width:100%; padding:12px; margin:5px 0; border-radius:10px; border:none; background:var(--main); color:#000; font-weight:bold;">إلغاء المؤقت</button>
+        <p onclick="closeTimer()" style="text-align:center; margin-top:10px; font-size:12px; color:#666; cursor:pointer;">إغلاق</p>
+    </div>
+</div>
+
+<div id="main-app">
+    <header>
+        <div style="display:flex; align-items:center;">
+            <i class="fas fa-plus-circle fa-lg" id="add-icon" onclick="toggleAdd()" style="display:none; color:var(--main); margin-left:10px;"></i>
+            <i class="fas fa-crown" id="crown-btn" onclick="openPremium()" style="color:#555; cursor:pointer;"></i>
+        </div>
+        <h3 id="app-title" style="font-size:16px;"><span id="greet-text">مرحباً</span> <span id="user-display-name">...</span> <span id="prem-badge" class="prem-tag">PREMIUM</span></h3>
+        <img id="u-img" class="user-pfp" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" onclick="toggleSettings()">
+    </header>
+
+    <div id="home-p" class="content active-page">
+        <div class="search-box">
+            <i class="fas fa-search" style="color:#555"></i>
+            <input type="text" id="search-input" placeholder="ابحث عن أغنية أو فنان..." oninput="searchSongs(this.value)">
+        </div>
+        <div id="add-p">
+            <input type="text" id="nt" placeholder="اسم الأغنية">
+            <input type="text" id="na" placeholder="اسم الفنان">
+            <input type="text" id="nu" placeholder="رابط الملف (URL)">
+            <input type="text" id="ni" placeholder="رابط الصورة (URL)">
+            <textarea id="nl" placeholder="كلمات الأغنية..."></textarea>
+            <button onclick="pushSong()">حفظ في القاعدة</button>
+        </div>
+        <div class="grid" id="grid-home"></div>
+    </div>
+
+    <div id="arabic-p" class="content"><div class="grid" id="grid-arabic"></div></div>
+    <div id="foreign-p" class="content"><div class="grid" id="grid-foreign"></div></div>
+    <div id="fav-p" class="content"><div class="grid" id="grid-fav"></div></div>
+
+    <div id="lead-p" class="content">
+        <h2 style="text-align:center; margin-bottom:20px; color:var(--main);"><i class="fas fa-trophy"></i> الصدارة الأسبوعية</h2>
+        <div id="leaderboard-list"></div>
+    </div>
+
+    <div id="mini-player" onclick="openPlayer()">
+        <i class="fas fa-play" id="m-play-btn" onclick="event.stopPropagation(); toggleAudio()"></i>
+        <div style="flex:1; text-align:right; overflow:hidden; margin: 0 10px;">
+            <b id="m-title" style="font-size:13px; display:block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">...</b>
+            <span id="m-artist" style="font-size:10px; color:#222; display:block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">...</span>
+        </div>
+        <img id="m-img" src="" style="width:42px; height:42px; border-radius:10px; object-fit:cover;">
+    </div>
+
+    <div id="player-full" class="full-layer">
+        <div id="p-bg-blur"></div>
+        <div class="swipe-indicator"></div>
+        <i class="fas fa-chevron-down fa-lg" onclick="closePlayer()" style="position:absolute; top:30px; left:20px; color:#fff; z-index:1;"></i>
+        <i class="fas fa-share-alt" onclick="shareSong()" style="position:absolute; top:30px; right:20px; color:#fff; font-size: 18px; z-index:1; cursor:pointer;"></i>
+
+        <img id="p-img" class="p-img">
+        <h3 id="p-title" style="margin-top:10px; z-index:1;"></h3>
+        <p id="p-artist" style="color:var(--main); font-size:14px; margin-top:5px; z-index:1;"></p>
+        
+        <input type="range" id="seekbar" value="0" step="1" oninput="seek(this.value)">
+        <div class="time-info">
+            <span id="cur-time">0:00</span>
+            <span id="dur-time">0:00</span>
+        </div>
+        
+        <div class="main-controls">
+            <i class="fas fa-backward-step fa-2x" onclick="prevSong()" style="z-index:1; cursor:pointer;"></i>
+            <i class="fas fa-play-circle play-pause-btn" id="p-main-play" onclick="toggleAudio()" style="z-index:1;"></i>
+            <i class="fas fa-forward-step fa-2x" onclick="nextSong()" style="z-index:1; cursor:pointer;"></i>
+        </div>
+
+        <div class="extra-controls">
+            <i class="fas fa-shuffle" id="shuffle-btn" onclick="toggleShuffle()"></i>
+            <i class="fas fa-moon" onclick="openTimer()"></i>
+            <i class="fas fa-quote-right" onclick="toggleLyrics()"></i>
+            <i class="fas fa-redo-alt" id="repeat-btn" onclick="toggleRepeat()"></i>
+        </div>
+
+        <div class="next-up-box" id="next-up-container" style="display:none; margin-top:40px;" onclick="nextSong()">
+            <img id="next-img" src="" style="width: 45px; height: 45px; border-radius: 10px; object-fit: cover;">
+            <div class="next-up-info">
+                <span class="next-up-label">الأغنية التالية:</span>
+                <b id="next-title" style="font-size: 13px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">...</b>
+            </div>
+            <i class="fas fa-arrow-left" style="color: var(--main); font-size: 14px;"></i>
+        </div>
+    </div>
+
+    <div id="lyrics-layer" class="full-layer" style="z-index:15000; background:rgba(0,0,0,0.95);">
+        <i class="fas fa-times fa-lg" onclick="toggleLyrics()" style="position:absolute; top:30px; left:20px;"></i>
+        <h3 id="lyric-title" style="color:var(--main); margin-bottom:20px;"></h3>
+        <div id="lyric-content" style="overflow-y:auto; font-size:16px; line-height:1.8; white-space:pre-wrap; padding:20px 30px 100px;"></div>
+    </div>
+
+    <div id="settings-panel" class="full-layer">
+        <i class="fas fa-times fa-lg" onclick="toggleSettings()" style="position:absolute; top:30px; left:20px;"></i>
+        <h2>الإعدادات</h2>
+        <div id="admin-panel" style="display:none; margin-top:20px; background:rgba(255,71,87,0.1); padding:15px; border-radius:15px; border:1px solid var(--main);">
+            <h4 style="color:var(--main); margin-bottom:10px;"><i class="fas fa-user-shield"></i> إدارة المستخدمين</h4>
+            <div id="users-list" style="max-height:200px; overflow-y:auto; background:#000; border-radius:10px; padding:10px;"></div>
+        </div>
+        <div style="margin-top:20px">
+            <div style="background:var(--card); padding:15px; border-radius:15px; border:1px solid #333; margin-bottom:15px;">
+                <p style="font-size:12px; color:#777; margin-bottom:10px;">اسم العرض:</p>
+                <input type="text" id="new-name-input" placeholder="اكتب اسمك هنا..." style="width:100%; padding:10px; border-radius:10px; background:#000; border:1px solid #444; color:#fff; outline:none; text-align:center;">
+                <button onclick="updateName()" style="width:100%; margin-top:10px; padding:10px; border-radius:10px; background:var(--main); border:none; color:#000; font-weight:bold;">حفظ الاسم</button>
+            </div>
+            <button id="upgrade-btn" onclick="openPremium()" style="width:100%; padding:15px; background:linear-gradient(45deg, #ffd700, #ff8c00); border:none; border-radius:15px; font-weight:bold; color:#000; margin-bottom:20px;">الترقية إلى Premium 👑</button>
+            <button onclick="document.getElementById('file-in').click()" style="width:100%; padding:14px; background:var(--card); color:#fff; border-radius:15px; border:1px solid #333; margin-bottom:20px;">تغيير صورة الملف الشخصي</button>
+            <input type="file" id="file-in" hidden onchange="uploadPhoto(this)" accept="image/*">
+            <p style="margin-bottom:15px; font-size:14px; color:#777">ثيم التطبيق (Premium):</p>
+            <div style="display:flex; justify-content:center; gap:15px; flex-wrap:wrap">
+                <div onclick="setT('default')" style="width:35px; height:35px; background:#ff4757; border-radius:50%; border:2px solid #fff"></div>
+                <div onclick="setT('theme-neon')" style="width:35px; height:35px; background:#00f2ff; border-radius:50%; position:relative;"><i class="fas fa-lock lock l-icon"></i></div>
+                <div onclick="setT('theme-gold')" style="width:35px; height:35px; background:#ffcc00; border-radius:50%; position:relative;"><i class="fas fa-lock lock l-icon"></i></div>
+                <div onclick="setT('theme-purple')" style="width:35px; height:35px; background:#bf55ec; border-radius:50%; position:relative;"><i class="fas fa-lock lock l-icon"></i></div>
+                <div onclick="setT('theme-green')" style="width:35px; height:35px; background:#2ecc71; border-radius:50%; position:relative;"><i class="fas fa-lock lock l-icon"></i></div>
+            </div>
+        </div>
+        <button onclick="auth.signOut(); location.reload();" style="margin-top:auto; padding:15px; border-radius:15px; background:rgba(255,71,87,0.1); color:var(--main); border:1px solid var(--main); font-weight:bold;">خروج</button>
+    </div>
+
+    <nav>
+        <div class="tab active" onclick="showPage('home-p', this, 'اكتشف')"><i class="fas fa-compass"></i><span>اكتشف</span></div>
+        <div class="tab" onclick="showPage('arabic-p', this, 'عربي')"><i class="fas fa-language"></i><span>عربي</span></div>
+        <div class="tab" onclick="showPage('foreign-p', this, 'أجنبي')"><i class="fas fa-globe"></i><span>أجنبي</span></div>
+        <div class="tab" onclick="showPage('fav-p', this, 'مفضلتي')"><i class="fas fa-heart"></i><span>مفضلتي</span></div>
+        <div class="tab" onclick="showPage('lead-p', this, 'الصدارة')"><i class="fas fa-trophy"></i><span>الصدارة</span></div>
+    </nav>
+</div>
+
+<audio id="main-audio"></audio>
+
+<script>
+    window.addEventListener('load', () => {
+        setTimeout(() => {
+            document.getElementById('splash-screen').classList.add('fade-out');
+            setTimeout(() => { document.getElementById('splash-screen').style.display = 'none'; }, 800);
+        }, 3000);
+    });
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyBgzhSdYMfc-ljrhhn5ExTGWcjMWTWJMdw",
+        authDomain: "my-music-new.firebaseapp.com",
+        databaseURL: "https://my-music-new-default-rtdb.firebaseio.com"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth(), db = firebase.database();
+    const audio = document.getElementById('main-audio');
+    
+    let songs = [], favs = [], currentId = -1, isRepeat = false, isShuffle = false, sleepTimer = null;
+    let isPremium = false, skipCount = 0; 
+    let pendingDeleteId = null;
+    let pendingBanData = { uid: null, status: null };
+    const ADMIN_EMAIL = "kadaanwar98@gmail.com";
+
+    // إعدادات التحميل التلقائي
+    const LIMIT = 20;
+    let cursors = { 'home-p': null, 'arabic-p': null, 'foreign-p': null };
+    let loadingStates = { 'home-p': false, 'arabic-p': false, 'foreign-p': false };
+    let finishedStates = { 'home-p': false, 'arabic-p': false, 'foreign-p': false };
+    let categorizedSongs = { 'home-p': [], 'arabic-p': [], 'foreign-p': [] };
+
+    function isArabic(text) { return /[\u0600-\u06FF]/.test(text); }
+
+    function updateMediaSession(s) {
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: s.title, artist: s.artist || 'فنان مجهول',
+                artwork: [{ src: s.img, sizes: '512x512', type: 'image/png' }]
+            });
+            navigator.mediaSession.setActionHandler('play', () => toggleAudio());
+            navigator.mediaSession.setActionHandler('pause', () => toggleAudio());
+            navigator.mediaSession.setActionHandler('previoustrack', () => prevSong());
+            navigator.mediaSession.setActionHandler('nexttrack', () => nextSong());
+        }
+    }
+
+    function updateGreeting() {
+        const hour = new Date().getHours();
+        let greeting = hour < 12 ? "صباح الخير ☕" : hour < 18 ? "طاب يومك ✨" : "مساء الخير 🌙";
+        document.getElementById('greet-text').innerText = greeting;
+    }
+
+    // دالة جلب الأغاني المحسنة مع دعم Pagination
+    function fetchSongs(pageId) {
+        if (loadingStates[pageId] || finishedStates[pageId]) return;
+        loadingStates[pageId] = true;
+
+        let query = db.ref('all_songs').orderByKey().limitToFirst(LIMIT * 3); 
+        if (cursors[pageId]) {
+            query = db.ref('all_songs').orderByKey().startAfter(cursors[pageId]).limitToFirst(LIMIT * 3);
+        }
+
+        query.once('value', snap => {
+            let foundCountInThisBatch = 0;
+            let lastKeyInBatch = null;
+
+            snap.forEach(child => {
+                const s = { id: child.key, ...child.val() };
+                lastKeyInBatch = child.key;
+                const isAr = isArabic(s.title);
+                
+                if (pageId === 'home-p') {
+                    if (!categorizedSongs['home-p'].some(x => x.id === s.id)) {
+                        categorizedSongs['home-p'].push(s);
+                        foundCountInThisBatch++;
+                    }
+                } 
+                else if (pageId === 'arabic-p' && isAr) {
+                    if (!categorizedSongs['arabic-p'].some(x => x.id === s.id)) {
+                        categorizedSongs['arabic-p'].push(s);
+                        foundCountInThisBatch++;
+                    }
+                }
+                else if (pageId === 'foreign-p' && !isAr) {
+                    if (!categorizedSongs['foreign-p'].some(x => x.id === s.id)) {
+                        categorizedSongs['foreign-p'].push(s);
+                        foundCountInThisBatch++;
+                    }
+                }
+                if (!songs.some(x => x.id === s.id)) songs.push(s);
+            });
+
+            cursors[pageId] = lastKeyInBatch;
+            if (snap.numChildren() < LIMIT) finishedStates[pageId] = true;
+            
+            loadingStates[pageId] = false;
+            
+            // إذا لم نجد عدد كافٍ من الأغاني لهذا التصنيف في الدفعة الحالية، نجلب المزيد فوراً
+            if (foundCountInThisBatch < 5 && !finishedStates[pageId]) {
+                fetchSongs(pageId);
+            }
+            
+            render();
+            checkLastPlayed();
+        });
+    }
+
+    function checkLastPlayed() {
+        const lastData = localStorage.getItem('lastPlayedData');
+        if (lastData && currentId === -1) {
+            const s = JSON.parse(lastData);
+            currentId = s.id;
+            document.getElementById('m-title').innerText = s.title; 
+            document.getElementById('m-artist').innerText = s.artist || '';
+            document.getElementById('m-img').src = s.img; 
+            document.getElementById('p-title').innerText = s.title;
+            document.getElementById('p-artist').innerText = s.artist || ''; 
+            document.getElementById('p-img').src = s.img;
+            document.getElementById('p-bg-blur').style.backgroundImage = `url(${s.img})`;
+            document.getElementById('mini-player').style.display = 'flex';
+        }
+    }
+
+    // تفعيل التمرير اللانهائي
+    ['home-p', 'arabic-p', 'foreign-p'].forEach(id => {
+        const el = document.getElementById(id);
+        if(el) el.addEventListener('scroll', function() {
+            if (this.scrollTop + this.clientHeight >= this.scrollHeight - 100) {
+                fetchSongs(id);
+            }
+        });
+    });
+
+    auth.onAuthStateChanged(user => {
+        if(user) {
+            db.ref('users/' + user.uid + '/isBanned').on('value', snap => {
+                if(snap.val() === true) { alert("عذراً، تم حظرك."); auth.signOut(); location.reload(); }
+            });
+            document.getElementById('auth-screen').style.display='none';
+            document.getElementById('main-app').style.display='flex';
+            updateGreeting();
+            
+            if(user.email === ADMIN_EMAIL) {
+                document.getElementById('add-icon').style.display='block';
+                document.getElementById('user-display-name').classList.add('admin-name');
+                document.getElementById('admin-panel').style.display='block';
+                loadAllUsers();
+            }
+
+            fetchSongs('home-p');
+            fetchSongs('arabic-p');
+            fetchSongs('foreign-p');
+
+            db.ref('users/'+user.uid).on('value', snap => {
+                const d = snap.val() || {}; favs = d.favs || []; isPremium = d.isPremium || false;
+                document.getElementById('user-display-name').innerText = d.name || "مستخدم";
+                document.getElementById('new-name-input').value = d.name || "";
+                if(isPremium) {
+                    document.getElementById('prem-badge').style.display = 'inline-block';
+                    document.getElementById('crown-btn').style.color = '#ffd700';
+                    document.getElementById('upgrade-btn').style.display = 'none';
+                    document.querySelectorAll('.l-icon').forEach(el => el.style.display = 'none');
+                }
+                if(d.theme) document.body.className = d.theme;
+                if(d.photo) document.getElementById('u-img').src = d.photo;
+                render();
+            });
+            updateLeaderboard();
+        }
+    });
+
+    function loadSong(id) {
+        currentId = id; 
+        const s = songs.find(x => x.id == id); 
+        if(!s) return;
+        
+        localStorage.setItem('lastPlayedData', JSON.stringify(s));
+        
+        audio.src = s.url; audio.volume = 0; audio.play();
+        if (navigator.vibrate) navigator.vibrate(15);
+        let fadeIn = setInterval(() => { if (audio.volume < 0.9) audio.volume += 0.1; else { audio.volume = 1.0; clearInterval(fadeIn); } }, 50);
+        
+        document.getElementById('m-title').innerText = s.title; 
+        document.getElementById('m-artist').innerText = s.artist || 'فنان مجهول';
+        document.getElementById('m-img').src = s.img; 
+        document.getElementById('p-title').innerText = s.title;
+        document.getElementById('p-artist').innerText = s.artist || 'فنان مجهول'; 
+        document.getElementById('p-img').src = s.img;
+        document.getElementById('p-bg-blur').style.backgroundImage = `url(${s.img})`;
+        document.getElementById('lyric-title').innerText = s.title; 
+        document.getElementById('lyric-content').innerText = s.lyrics || "لا توجد كلمات.";
+        document.getElementById('mini-player').style.display = 'flex'; 
+        updateNextUp(id);
+        updateMediaSession(s); updatePlayIcon(true); render();
+    }
+
+    function shareSong() {
+        const s = songs.find(x => x.id == currentId);
+        if (s && navigator.share) {
+            navigator.share({ title: s.title, text: `أستمع الآن إلى أغنية "${s.title}" للفنان ${s.artist} على Music Pro! 🎶`, url: window.location.href }).catch(() => {});
+        } else notify("المشاركة غير مدعومة");
+    }
+
+    function toggleAudio() {
+        if(!audio.src || audio.src === window.location.href) {
+            if(currentId !== -1) loadSong(currentId);
+            return;
+        }
+
+        if(audio.paused) { 
+            audio.volume = 0; audio.play(); 
+            let fadeIn = setInterval(() => { if (audio.volume < 0.9) audio.volume += 0.1; else { audio.volume = 1.0; clearInterval(fadeIn); } }, 50);
+            updatePlayIcon(true); 
+        } else { 
+            let fadeOut = setInterval(() => { if (audio.volume > 0.1) audio.volume -= 0.1; else { clearInterval(fadeOut); audio.pause(); audio.volume = 1.0; updatePlayIcon(false); } }, 50);
+        }
+    }
+
+    function nextSong() { 
+        if(!isPremium && skipCount >= 5) { notify("تجاوزت الحد! 👑"); openPremium(); return; } 
+        skipCount++; 
+        let idx = songs.findIndex(x => x.id == currentId);
+        if (idx === -1) idx = 0;
+        let nextIdx = (idx + 1) % songs.length; 
+        if(isShuffle) nextIdx = Math.floor(Math.random() * songs.length); 
+        loadSong(songs[nextIdx].id); 
+    }
+
+    function prevSong() { 
+        let idx = songs.findIndex(x => x.id == currentId);
+        if (idx === -1) idx = 0;
+        let prevIdx = (idx - 1 + songs.length) % songs.length; 
+        loadSong(songs[prevIdx].id); 
+    }
+
+    function updatePlayIcon(p) {
+        document.getElementById('p-main-play').className = p ? 'fas fa-pause-circle play-pause-btn' : 'fas fa-play-circle play-pause-btn';
+        document.getElementById('m-play-btn').className = p ? 'fas fa-pause' : 'fas fa-play';
+    }
+
+    audio.onplay = () => { document.getElementById('lyric-content').classList.add('active'); document.getElementById('p-img').classList.add('pulse'); updatePlayIcon(true); };
+    audio.onpause = () => { document.getElementById('lyric-content').classList.remove('active'); document.getElementById('p-img').classList.remove('pulse'); updatePlayIcon(false); };
+    audio.ontimeupdate = () => { if(!isNaN(audio.duration)) { const sk = document.getElementById('seekbar'); sk.max = Math.floor(audio.duration); sk.value = Math.floor(audio.currentTime); document.getElementById('cur-time').innerText = formatTime(audio.currentTime); document.getElementById('dur-time').innerText = formatTime(audio.duration); } };
+    audio.onended = () => { recordListen(); if(isRepeat) audio.play(); else nextSong(); };
+
+    function seek(v) { audio.currentTime = v; }
+    function formatTime(s) { let m = Math.floor(s/60), sec = Math.floor(s%60); return m + ":" + (sec < 10 ? "0" + sec : sec); }
+
+    function render() {
+        const isAdm = auth.currentUser && auth.currentUser.email === ADMIN_EMAIL;
+        const draw = (list, target) => {
+            const el = document.getElementById(target);
+            if(!el) return;
+            el.innerHTML = list.map((s, index) => `
+                <div class="song-card ${currentId == s.id ? 'playing' : ''}" 
+                     style="animation-delay: ${(index % 20) * 0.05}s" 
+                     onclick="loadSong('${s.id}')">
+                    <i class="fas fa-heart heart ${favs.includes(s.id)?'active':''}" onclick="event.stopPropagation(); toggleFav('${s.id}')"></i>
+                    ${isAdm ? `<i class="fas fa-trash del-btn" style="display:block" onclick="event.stopPropagation(); deleteSong('${s.id}')"></i>` : ''}
+                    <div class="thumb" style="background-image:url(${s.img})"></div>
+                    <b style="display:block; text-align:center; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${s.title}</b>
+                    <span class="artist-lbl">${s.artist || 'فنان مجهول'}</span>
+                </div>
+            `).join('');
+        };
+
+        draw(categorizedSongs['home-p'], 'grid-home');
+        draw(categorizedSongs['arabic-p'], 'grid-arabic');
+        draw(categorizedSongs['foreign-p'], 'grid-foreign');
+        draw(songs.filter(s => favs.includes(s.id)), 'grid-fav');
+    }
+
+    function recordListen() {
+        if (!auth.currentUser) return;
+        const week = getWeekId();
+        const ref = db.ref(`users/${auth.currentUser.uid}/listenHistory/${week}`);
+        ref.transaction(current => (current || 0) + 1);
+    }
+
+    function getWeekId() {
+        const now = new Date();
+        const startOfYear = new Date(now.getFullYear(), 0, 1);
+        const days = Math.floor((now - startOfYear) / (24 * 60 * 60 * 1000));
+        return `week_${Math.ceil((days + startOfYear.getDay() + 1) / 7)}_${now.getFullYear()}`;
+    }
+
+    function toggleFav(id) { const isFav = favs.includes(id); isFav ? favs = favs.filter(i=>i!==id) : favs.push(id); db.ref('users/'+auth.currentUser.uid).update({favs}); }
+    function toggleRepeat() { isRepeat = !isRepeat; document.getElementById('repeat-btn').classList.toggle('active', isRepeat); notify(isRepeat ? "تكرار 🔁" : "إيقاف تكرار ➡️"); }
+    function toggleShuffle() { isShuffle = !isShuffle; document.getElementById('shuffle-btn').classList.toggle('active', isShuffle); notify(isShuffle ? "عشوائي 🔀" : "إيقاف عشوائي ➡️"); }
+    function toggleLyrics() { if(!isPremium) { notify("لـ Premium فقط 👑"); openPremium(); return; } document.getElementById('lyrics-layer').classList.toggle('open'); }
+    
+    function updateLeaderboard() {
+        const week = getWeekId();
+        db.ref('users').on('value', snap => {
+            const users = [];
+            snap.forEach(u => {
+                const d = u.val();
+                const score = (d.listenHistory && d.listenHistory[week]) ? parseInt(d.listenHistory[week]) : 0;
+                users.push({ name: d.name || "مجهول", photo: d.photo || "https://cdn-icons-png.flaticon.com/512/149/149071.png", score: score, email: d.email });
+            });
+            users.sort((a, b) => b.score - a.score);
+            const listEl = document.getElementById('leaderboard-list');
+            if(listEl) listEl.innerHTML = users.map((u, i) => `<div class="leader-item" style="animation-delay: ${i * 0.1}s"><div class="rank-badge">${i+1}</div><img src="${u.photo}" class="leader-img"><div class="leader-info"><div style="font-weight:bold">${u.name} ${u.email === ADMIN_EMAIL ? '👑' : ''}</div><div class="leader-score">${u.score} استماع</div></div></div>`).join('');
+        });
+    }
+
+    function loadAllUsers() {
+        const list = document.getElementById('users-list');
+        db.ref('users').on('value', snap => {
+            if (!snap.exists()) { list.innerHTML = '<p style="text-align:center;">لا يوجد مستخدمون.</p>'; return; }
+            list.innerHTML = "";
+            snap.forEach(u => {
+                const userData = u.val(); if(u.key === auth.currentUser.uid) return;
+                const item = document.createElement('div');
+                item.className = 'user-item';
+                item.innerHTML = `<div style="text-align:right"><div style="font-size:12px; font-weight:bold; color:#fff;">${userData.name || 'مجهول'}</div><div style="font-size:9px; color:#777">${userData.email || ''}</div></div><div style="display:flex; gap:5px;"><button class="prem-btn" onclick="toggleUserPremium('${u.key}', ${!userData.isPremium})">${userData.isPremium ? 'إلغاء تاج' : 'ترقية'}</button>${userData.isBanned ? `<button class="unban-btn" onclick="openBanModal('${u.key}', false)">فك</button>` : `<button class="ban-btn" onclick="openBanModal('${u.key}', true)">بند</button>`}</div>`;
+                list.appendChild(item);
+            });
+        });
+    }
+
+    function handleAuth() {
+        const e = document.getElementById('email').value, p = document.getElementById('pass').value;
+        if(e && p) auth.signInWithEmailAndPassword(e,p).catch(err => {
+            auth.createUserWithEmailAndPassword(e,p).then(res => { db.ref('users/' + res.user.uid).set({ email: e, name: "مستخدم جديد", isPremium: false, isBanned: false }); }).catch(err2 => alert(err2.message));
+        });
+    }
+
+    function toggleUserPremium(uid, status) { db.ref('users/' + uid).update({ isPremium: status, premRequested: false }).then(() => notify(status ? "تم التفعيل 👑" : "تم الإلغاء")); }
+    function openBanModal(uid, status) { pendingBanData = { uid, status }; document.getElementById('ban-confirm-modal').style.display = 'flex'; }
+    function closeBanModal() { document.getElementById('ban-confirm-modal').style.display = 'none'; }
+    document.getElementById('confirm-ban-btn').onclick = () => { if(pendingBanData.uid) { db.ref('users/' + pendingBanData.uid).update({ isBanned: pendingBanData.status }).then(() => { notify("تم التعديل ✅"); closeBanModal(); }); } };
+    function updateName() { const name = document.getElementById('new-name-input').value; if(name.trim()) db.ref('users/' + auth.currentUser.uid).update({ name: name }).then(() => notify("تم التحديث ✨")); }
+    function requestPremium() { const code = document.getElementById('promo-input').value; if(code === "GEMINI2026") { db.ref('users/' + auth.currentUser.uid).update({ premRequested: true }).then(() => { notify("تم إرسال الطلب! ⌛"); closePremium(); }); } else notify("كود خطأ!"); }
+    function openPremium() { document.getElementById('premium-modal').style.display='flex'; }
+    function closePremium() { document.getElementById('premium-modal').style.display='none'; }
+    function toggleAdd() { const p = document.getElementById('add-p'); p.style.display = p.style.display==='block' ? 'none' : 'block'; }
+    function pushSong() { const d = { title: document.getElementById('nt').value, artist: document.getElementById('na').value, url: document.getElementById('nu').value, img: document.getElementById('ni').value, lyrics: document.getElementById('nl').value }; if(d.title && d.url) db.ref('all_songs').push(d).then(() => { toggleAdd(); notify("تمت الإضافة ✅"); location.reload(); }); }
+    
+    function uploadPhoto(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.readAsDataURL(input.files[0]);
+            notify("جاري معالجة الصورة... ⏳");
+            reader.onload = (e) => {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 180; 
+                    const scale = MAX_WIDTH / img.width;
+                    canvas.width = MAX_WIDTH;
+                    canvas.height = img.height * scale;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    const compressedData = canvas.toDataURL('image/jpeg', 0.6); 
+                    db.ref('users/' + auth.currentUser.uid).update({ photo: compressedData })
+                    .then(() => notify("تم تحديث البروفايل! ✨"));
+                };
+            };
+        }
+    }
+
+    function deleteSong(id) { pendingDeleteId = id; document.getElementById('delete-modal').style.display = 'flex'; }
+    function closeDeleteModal() { document.getElementById('delete-modal').style.display = 'none'; }
+    document.getElementById('confirm-delete-btn').onclick = () => { 
+        if(pendingDeleteId) db.ref('all_songs/' + pendingDeleteId).remove().then(() => { 
+            notify("تم الحذف 🗑️"); 
+            closeDeleteModal(); 
+            location.reload();
+        }); 
+    };
+
+    function openTimer() { document.getElementById('timer-modal').style.display='flex'; }
+    function closeTimer() { document.getElementById('timer-modal').style.display='none'; }
+    function setSleepTimer(mins) { if(sleepTimer) clearTimeout(sleepTimer); if(mins > 0) { sleepTimer = setTimeout(() => audio.pause(), mins * 60000); notify("إيقاف بعد " + mins + " دقيقة"); } closeTimer(); }
+    
+    function showPage(id, el, title) { 
+        document.querySelectorAll('.content').forEach(p => p.classList.remove('active-page')); 
+        document.getElementById(id).classList.add('active-page'); 
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active')); 
+        el.classList.add('active'); 
+        if (id === 'home-p') updateGreeting(); 
+        else if(id === 'lead-p') updateLeaderboard(); 
+        else document.getElementById('greet-text').innerText = title;
+        render();
+    }
+    
+    function toggleSettings() { document.getElementById('settings-panel').classList.toggle('open'); }
+    function setT(t) { if(!isPremium && t !== 'default') { notify("لـ Premium فقط 👑"); openPremium(); return; } document.body.className = t === 'default' ? '' : t; db.ref('users/'+auth.currentUser.uid).update({theme: document.body.className}); }
+    
+    function searchSongs(q) { 
+        if (q.trim() === "") { render(); return; }
+        const query = q.toLowerCase();
+        const filtered = songs.filter(s => s.title.toLowerCase().includes(query) || (s.artist && s.artist.toLowerCase().includes(query))); 
+        const activePage = document.querySelector('.content.active-page');
+        const gridId = activePage.querySelector('.grid').id;
+        const el = document.getElementById(gridId);
+        el.innerHTML = filtered.map(s => `
+            <div class="song-card ${currentId == s.id ? 'playing' : ''}" onclick="loadSong('${s.id}')">
+                <i class="fas fa-heart heart ${favs.includes(s.id)?'active':''}" onclick="event.stopPropagation(); toggleFav('${s.id}')"></i>
+                <div class="thumb" style="background-image:url(${s.img})"></div>
+                <b style="display:block; text-align:center; font-size:12px;">${s.title}</b>
+                <span class="artist-lbl">${s.artist || 'فنان مجهول'}</span>
+            </div>
+        `).join('');
+    }
+
+    function updateNextUp(id) {
+        if (!songs || songs.length === 0) return;
+        let idx = songs.findIndex(x => x.id == id);
+        if (idx === -1) idx = 0;
+        let nextIdx = (idx + 1) % songs.length;
+        if(isShuffle && songs.length > 1) {
+            nextIdx = Math.floor(Math.random() * songs.length);
+            if(nextIdx === idx) nextIdx = (idx + 1) % songs.length;
+        }
+        const nextSongObj = songs[nextIdx];
+        if(nextSongObj) {
+            document.getElementById('next-up-container').style.display = 'flex';
+            document.getElementById('next-title').innerText = nextSongObj.title;
+            document.getElementById('next-img').src = nextSongObj.img;
+        }
+    }
+
+    function openPlayer() { document.getElementById('player-full').classList.add('open'); }
+    function closePlayer() { document.getElementById('player-full').classList.remove('open'); }
+    function notify(m) { const t = document.getElementById('toast'); t.innerText = m; t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 2000); }
+
+    let touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
+    const pFullEl = document.getElementById('player-full'), miniEl = document.getElementById('mini-player');
+
+    function handleGesture(isFullPlayer) {
+        let xDiff = touchEndX - touchStartX, yDiff = touchEndY - touchStartY;
+        const threshold = 50; 
+        if (isFullPlayer) {
+            if (Math.abs(yDiff) > Math.abs(xDiff)) { if (yDiff > threshold) closePlayer(); } 
+            else if (Math.abs(xDiff) > threshold) { if (xDiff > 0) prevSong(); else nextSong(); }
+        } else {
+            if (Math.abs(yDiff) > Math.abs(xDiff)) { if (yDiff < -30) openPlayer(); }
+        }
+    }
+
+    if(pFullEl) {
+        pFullEl.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY; }, {passive: true});
+        pFullEl.addEventListener('touchend', e => { touchEndX = e.changedTouches[0].screenX; touchEndY = e.changedTouches[0].screenY; handleGesture(true); }, {passive: true});
+    }
+
+    if(miniEl) {
+        miniEl.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY; }, {passive: true});
+        miniEl.addEventListener('touchend', e => { touchEndX = e.changedTouches[0].screenX; touchEndY = e.changedTouches[0].screenY; handleGesture(false); }, {passive: true});
+    }
+
+</script>
+</body>
+</html>

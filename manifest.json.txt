@@ -1,0 +1,23 @@
+{
+  "short_name": "MusicPro",
+  "name": "Music Pro Max - Premium Edition",
+  "description": "استمع إلى أحدث الأغاني العربية والأجنبية",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/149/149071.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/149/149071.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#ff4757",
+  "background_color": "#0b0b0b",
+  "dir": "rtl",
+  "lang": "ar"
+}
